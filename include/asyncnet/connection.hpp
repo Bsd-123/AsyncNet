@@ -18,17 +18,28 @@ namespace asyncnet {
 class Connection {
 public:
     using ClosedHandler = std::function<void(int fd)>;
+    // Invoked whenever bytes are actually read from the peer -- the signal
+    // an idle-timeout mechanism cares about (architecture doc §5). Not
+    // invoked on writes: us successfully flushing data says nothing about
+    // whether the peer is still there.
+    using ActivityHandler = std::function<void(int fd)>;
 
     static constexpr std::size_t kDefaultBufferCapacity = 64 * 1024;
 
     Connection(EventLoop& loop, int fd, ClosedHandler onClosed,
-               std::size_t bufferCapacity = kDefaultBufferCapacity);
+               std::size_t bufferCapacity = kDefaultBufferCapacity,
+               ActivityHandler onActivity = nullptr);
     ~Connection();
 
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
 
     int fd() const { return fd_; }
+
+    // Stops reading and flushes any buffered response before closing --
+    // same graceful-teardown semantics as a peer EOF. Public: this is
+    // triggered externally, by an idle-timeout check.
+    void closeIdle();
 
 private:
     enum class State { Active, Closing, Closed };
@@ -56,6 +67,7 @@ private:
     RingBuffer readBuffer_;
     RingBuffer writeBuffer_;
     ClosedHandler onClosed_;
+    ActivityHandler onActivity_;
 
     // Above HIGH: stop reading (deregister EPOLLIN) until the write buffer
     // drains back down to LOW. Based purely on write-buffer occupancy --

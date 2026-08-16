@@ -13,12 +13,13 @@
 namespace asyncnet {
 
 Connection::Connection(EventLoop& loop, int fd, ClosedHandler onClosed,
-                        std::size_t bufferCapacity)
+                        std::size_t bufferCapacity, ActivityHandler onActivity)
     : loop_(loop),
       fd_(fd),
       readBuffer_(bufferCapacity),
       writeBuffer_(bufferCapacity),
       onClosed_(std::move(onClosed)),
+      onActivity_(std::move(onActivity)),
       highWatermark_(bufferCapacity * 3 / 4),
       lowWatermark_(bufferCapacity / 4) {
     loop_.reactor().registerFd(fd_, IOEvent::Readable,
@@ -68,6 +69,9 @@ void Connection::onReadable() {
         const IOOutcome outcome = readBuffer_.fillFrom(fd_);
 
         if (outcome.status == IOStatus::Ok) {
+            if (onActivity_) {
+                onActivity_(fd_);
+            }
             moveReadableBytesToWriteBuffer();
             applyBackpressureWatermarks();
 
@@ -165,6 +169,10 @@ void Connection::applyBackpressureWatermarks() {
     } else if (backpressureActive_ && writeBuffer_.size() <= lowWatermark_) {
         backpressureActive_ = false;
     }
+}
+
+void Connection::closeIdle() {
+    closeGracefully();
 }
 
 void Connection::closeGracefully() {

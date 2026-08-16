@@ -6,6 +6,7 @@
 
 #include <cerrno>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -247,4 +248,27 @@ TEST(Connection, WriteBufferOverflowClosesWithoutAffectingOtherConnections) {
     loop.runOnce(200);
     loop.runOnce(200);
     EXPECT_EQ(readExactly(spB.writeEnd, 2), "ok");
+}
+
+TEST(Connection, ActivityCallbackFiresOnReadButNotOnWriteOnly) {
+    asyncnet::EventLoop loop;
+    SocketPair sp;
+    const int connFd = sp.readEnd;
+    sp.readEnd = -1;
+    setNonBlocking(connFd);
+
+    std::vector<int> activityFds;
+    asyncnet::Connection conn(
+        loop, connFd, [](int) {}, asyncnet::Connection::kDefaultBufferCapacity,
+        [&](int fd) { activityFds.push_back(fd); });
+
+    ASSERT_EQ(write(sp.writeEnd, "x", 1), 1);
+    loop.runOnce(200); // triggers a read
+    ASSERT_EQ(activityFds.size(), 1u);
+    EXPECT_EQ(activityFds[0], connFd);
+
+    loop.runOnce(200); // flushes the echo (a write, not a read)
+    EXPECT_EQ(activityFds.size(), 1u); // unchanged: writes aren't activity
+
+    EXPECT_EQ(readExactly(sp.writeEnd, 1), "x");
 }

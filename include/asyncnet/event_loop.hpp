@@ -47,6 +47,11 @@ public:
 
     IOReactor& reactor() { return *reactor_; }
 
+    // True once stop() has taken effect (or been requested). Lets an
+    // owner drive its own runOnce()-based loop (e.g. to fold in idle-
+    // timeout checks) while still honoring the same stop lifecycle.
+    bool stopRequested() const { return stopRequested_; }
+
 private:
     std::unique_ptr<IOReactor> reactor_;
     std::vector<std::function<void()>> deferredActions_;

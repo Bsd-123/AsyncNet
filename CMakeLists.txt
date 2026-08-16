@@ -36,6 +36,8 @@ add_library(asyncnet_core
     src/acceptor.cpp
     src/ring_buffer.cpp
     src/connection.cpp
+    src/idle_timeout_manager.cpp
+    src/echo_server.cpp
 )
 target_include_directories(asyncnet_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

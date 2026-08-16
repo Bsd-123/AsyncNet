@@ -90,3 +90,17 @@ TEST(EventLoop, PostRunsAfterCurrentDispatchBatchFinishes) {
     EXPECT_EQ(order[1], "handler-end");
     EXPECT_EQ(order[2], "deferred");
 }
+
+TEST(EventLoop, PostBetweenRunOnceCallsDoesNotWaitOnAnUnrelatedBlockingPoll) {
+    asyncnet::EventLoop loop;
+    // Nothing is registered, so a naive runOnce(-1) would block forever;
+    // post() called here (outside of any dispatch batch, unlike the test
+    // above) must still get to run on the very next cycle rather than
+    // waiting on an I/O event that will never come.
+    bool ran = false;
+    loop.post([&]() { ran = true; });
+
+    loop.runOnce(-1);
+
+    EXPECT_TRUE(ran);
+}
