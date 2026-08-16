@@ -18,7 +18,9 @@ Connection::Connection(EventLoop& loop, int fd, ClosedHandler onClosed,
       fd_(fd),
       readBuffer_(bufferCapacity),
       writeBuffer_(bufferCapacity),
-      onClosed_(std::move(onClosed)) {
+      onClosed_(std::move(onClosed)),
+      highWatermark_(bufferCapacity * 3 / 4),
+      lowWatermark_(bufferCapacity / 4) {
     loop_.reactor().registerFd(fd_, IOEvent::Readable,
                                 [this](int f, IOEvent e) { onEvent(f, e); });
     currentInterest_ = IOEvent::Readable;
@@ -67,6 +69,21 @@ void Connection::onReadable() {
 
         if (outcome.status == IOStatus::Ok) {
             moveReadableBytesToWriteBuffer();
+            applyBackpressureWatermarks();
+
+            if (writeBuffer_.full() && !readBuffer_.empty()) {
+                // Write buffer is completely full and there's still more
+                // data that couldn't be forwarded into it: the explicit
+                // overflow policy is close-on-full (architecture doc §4),
+                // not silently dropping bytes and corrupting the stream.
+                ASYNCNET_LOG_WARN("connection fd=" + std::to_string(fd_) +
+                                   ": write buffer overflow, closing");
+                closeImmediately();
+                return;
+            }
+            if (backpressureActive_) {
+                break; // HIGH watermark reached: stop reading for this wakeup
+            }
             continue; // drain the socket until EAGAIN, per architecture doc §6
         }
         if (outcome.status == IOStatus::Closed) {
@@ -91,6 +108,7 @@ void Connection::onWritable() {
         const IOOutcome outcome = writeBuffer_.drainTo(fd_);
 
         if (outcome.status == IOStatus::Ok) {
+            applyBackpressureWatermarks();
             continue; // keep draining until EAGAIN or the buffer empties
         }
         if (outcome.status == IOStatus::Error) {
@@ -128,7 +146,7 @@ void Connection::updateInterest() {
     }
 
     IOEvent desired = IOEvent::None;
-    if (readInterestEnabled_) {
+    if (readInterestEnabled_ && !backpressureActive_) {
         desired = desired | IOEvent::Readable;
     }
     if (!writeBuffer_.empty()) {
@@ -138,6 +156,14 @@ void Connection::updateInterest() {
     if (desired != currentInterest_) {
         loop_.reactor().modifyFd(fd_, desired);
         currentInterest_ = desired;
+    }
+}
+
+void Connection::applyBackpressureWatermarks() {
+    if (!backpressureActive_ && writeBuffer_.size() >= highWatermark_) {
+        backpressureActive_ = true;
+    } else if (backpressureActive_ && writeBuffer_.size() <= lowWatermark_) {
+        backpressureActive_ = false;
     }
 }
 

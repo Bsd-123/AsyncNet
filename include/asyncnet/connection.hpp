@@ -38,6 +38,10 @@ private:
     void onWritable();
     void moveReadableBytesToWriteBuffer();
     void updateInterest();
+    // Hysteresis: flips backpressureActive_ on only at the HIGH watermark
+    // and off only at LOW, so occupancy hovering near one threshold can't
+    // flap EPOLLIN on and off every cycle (architecture doc §4).
+    void applyBackpressureWatermarks();
 
     // Stops reading and, once any buffered response has been flushed,
     // closes the fd. Used for orderly teardown (peer EOF).
@@ -53,8 +57,15 @@ private:
     RingBuffer writeBuffer_;
     ClosedHandler onClosed_;
 
+    // Above HIGH: stop reading (deregister EPOLLIN) until the write buffer
+    // drains back down to LOW. Based purely on write-buffer occupancy --
+    // never on how fast (or slowly) the peer happens to be reading.
+    std::size_t highWatermark_;
+    std::size_t lowWatermark_;
+
     State state_ = State::Active;
-    bool readInterestEnabled_ = true;
+    bool readInterestEnabled_ = true;  // set false once closeGracefully() has run
+    bool backpressureActive_ = false;  // toggled purely by write-buffer occupancy
     IOEvent currentInterest_ = IOEvent::None;
 };
 
