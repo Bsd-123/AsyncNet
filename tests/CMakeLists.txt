@@ -8,6 +8,7 @@ add_executable(asyncnet_tests
     event_loop_test.cpp
     acceptor_test.cpp
     ring_buffer_test.cpp
+    connection_test.cpp
 )
 target_include_directories(asyncnet_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

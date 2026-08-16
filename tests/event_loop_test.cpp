@@ -2,6 +2,9 @@
 
 #include <unistd.h>
 
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "support/socket_pair.hpp"
@@ -62,4 +65,28 @@ TEST(EventLoop, DispatchesMultipleReadyHandlersBeforeStopping) {
     loop.run();
 
     EXPECT_EQ(calls, 2);
+}
+
+TEST(EventLoop, PostRunsAfterCurrentDispatchBatchFinishes) {
+    asyncnet::EventLoop loop;
+    SocketPair sp;
+
+    std::vector<std::string> order;
+    loop.reactor().registerFd(sp.readEnd, asyncnet::IOEvent::Readable,
+                               [&](int, asyncnet::IOEvent) {
+                                   order.push_back("handler");
+                                   loop.post([&order]() { order.push_back("deferred"); });
+                                   order.push_back("handler-end");
+                                   loop.stop();
+                               });
+
+    const char byte = 'x';
+    ASSERT_EQ(write(sp.writeEnd, &byte, 1), 1);
+
+    loop.run();
+
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], "handler");
+    EXPECT_EQ(order[1], "handler-end");
+    EXPECT_EQ(order[2], "deferred");
 }
