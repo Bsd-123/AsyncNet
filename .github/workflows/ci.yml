@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [debug, asan-ubsan, release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtest-dev libgmock-dev
+
+      - name: Configure (${{ matrix.preset }})
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build (${{ matrix.preset }})
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test (${{ matrix.preset }})
+        run: ctest --preset ${{ matrix.preset }}

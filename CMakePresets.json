@@ -1,0 +1,58 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ASYNCNET_ENABLE_ASAN_UBSAN": "OFF"
+      }
+    },
+    {
+      "name": "asan-ubsan",
+      "displayName": "Debug + ASan/UBSan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/asan-ubsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "ASYNCNET_ENABLE_ASAN_UBSAN": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ASYNCNET_ENABLE_ASAN_UBSAN": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "asan-ubsan", "configurePreset": "asan-ubsan" },
+    { "name": "release", "configurePreset": "release" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "asan-ubsan",
+      "configurePreset": "asan-ubsan",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
