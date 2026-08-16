@@ -30,13 +30,13 @@ else()
     add_library(asyncnet_sanitizers INTERFACE)
 endif()
 
-# Header-only for now (just the logger). Becomes a STATIC library with real
-# sources once EpollReactor/EventLoop/etc. land.
-add_library(asyncnet_core INTERFACE)
-target_include_directories(asyncnet_core INTERFACE
+add_library(asyncnet_core
+    src/epoll_reactor.cpp
+)
+target_include_directories(asyncnet_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(asyncnet_core INTERFACE asyncnet_warnings asyncnet_sanitizers)
+target_link_libraries(asyncnet_core PUBLIC asyncnet_warnings asyncnet_sanitizers)
 
 add_executable(asyncnet_server src/main.cpp)
 target_link_libraries(asyncnet_server PRIVATE asyncnet_core)
