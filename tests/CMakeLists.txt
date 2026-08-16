@@ -6,6 +6,7 @@ add_executable(asyncnet_tests
     logger_test.cpp
     epoll_reactor_test.cpp
     event_loop_test.cpp
+    acceptor_test.cpp
 )
 target_include_directories(asyncnet_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

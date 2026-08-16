@@ -33,6 +33,7 @@ endif()
 add_library(asyncnet_core
     src/epoll_reactor.cpp
     src/event_loop.cpp
+    src/acceptor.cpp
 )
 target_include_directories(asyncnet_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
