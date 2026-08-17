@@ -12,9 +12,9 @@ constexpr std::uint16_t kDefaultPort = 9000;
 constexpr std::chrono::milliseconds kDefaultIdleTimeout{60000};
 }
 
-// Plain TCP echo server: no parsing yet (M2), no graceful shutdown yet
-// (a later M1 step) -- just the Acceptor/Connection/idle-timeout pipeline
-// wired together end to end.
+// Plain TCP echo server: no protocol parsing yet (that's M2). EchoServer
+// wires up the Acceptor/Connection pipeline, idle-timeout detection, and
+// SIGINT/SIGTERM-driven graceful shutdown internally.
 int main(int argc, char** argv) {
     const std::uint16_t port =
         argc > 1 ? static_cast<std::uint16_t>(std::stoi(argv[1])) : kDefaultPort;

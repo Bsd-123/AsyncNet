@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -173,6 +174,10 @@ void Connection::applyBackpressureWatermarks() {
 
 void Connection::closeIdle() {
     closeGracefully();
+}
+
+void Connection::closeForShutdown() {
+    closeImmediately();
 }
 
 void Connection::closeGracefully() {

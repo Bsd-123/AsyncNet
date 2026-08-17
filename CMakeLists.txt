@@ -37,6 +37,7 @@ add_library(asyncnet_core
     src/ring_buffer.cpp
     src/connection.cpp
     src/idle_timeout_manager.cpp
+    src/shutdown_signal.cpp
     src/echo_server.cpp
 )
 target_include_directories(asyncnet_core PUBLIC

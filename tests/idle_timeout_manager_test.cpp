@@ -88,6 +88,20 @@ TEST(IdleTimeoutManager, NextPollTimeoutMsReflectsSoonestExpiry) {
     EXPECT_EQ(mgr.nextPollTimeoutMs(t0 + 150ms), 0); // already due
 }
 
+TEST(IdleTimeoutManager, NextPollTimeoutMsRoundsUpSubMillisecondRemainderInsteadOfTruncatingToZero) {
+    asyncnet::IdleTimeoutManager mgr(100ms);
+    const auto t0 = Clock::now();
+    mgr.recordActivity(1, t0);
+
+    // 500us before expiry: truncating toward zero milliseconds would
+    // wrongly yield 0 (a non-blocking poll) even though the connection
+    // isn't actually due yet. A caller looping on that would busy-spin
+    // instead of blocking the remaining sliver of a millisecond, since
+    // real time barely advances per non-blocking iteration.
+    const auto almostDue = t0 + 100ms - std::chrono::microseconds(500);
+    EXPECT_EQ(mgr.nextPollTimeoutMs(almostDue), 1);
+}
+
 TEST(IdleTimeoutManager, MultipleConnectionsExpireIndependently) {
     asyncnet::IdleTimeoutManager mgr(100ms);
     const auto t0 = Clock::now();

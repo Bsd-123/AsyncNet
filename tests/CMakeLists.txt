@@ -10,6 +10,7 @@ add_executable(asyncnet_tests
     ring_buffer_test.cpp
     connection_test.cpp
     idle_timeout_manager_test.cpp
+    shutdown_signal_test.cpp
     echo_server_test.cpp
 )
 target_include_directories(asyncnet_tests PRIVATE

@@ -41,6 +41,12 @@ public:
     // triggered externally, by an idle-timeout check.
     void closeIdle();
 
+    // Closes right away, discarding anything still buffered. Public:
+    // triggered externally, once a graceful-shutdown grace period has
+    // elapsed and this connection is still around -- it already had its
+    // chance to flush, so there is no more waiting left to do.
+    void closeForShutdown();
+
 private:
     enum class State { Active, Closing, Closed };
 

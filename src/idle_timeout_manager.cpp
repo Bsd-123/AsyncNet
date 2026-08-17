@@ -43,8 +43,16 @@ int IdleTimeoutManager::nextPollTimeoutMs(Clock::time_point now) const {
         return -1;
     }
     const auto remaining = queue_.top().expiry - now;
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
-    return ms > 0 ? static_cast<int>(ms) : 0;
+    if (remaining <= Clock::duration::zero()) {
+        return 0;
+    }
+    // Round UP to milliseconds, not truncate: truncating a sub-millisecond
+    // positive remainder to 0 would turn this into a non-blocking poll()
+    // that returns instantly without waiting out the gap, and since real
+    // time barely advances per iteration at that point, the caller's loop
+    // would busy-spin for many cycles instead of just blocking the
+    // remaining sliver of a millisecond.
+    return static_cast<int>(std::chrono::ceil<std::chrono::milliseconds>(remaining).count());
 }
 
 } // namespace asyncnet
