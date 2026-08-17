@@ -6,10 +6,12 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <chrono>
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -29,6 +31,26 @@ int connectLoopbackBlocking(std::uint16_t port) {
         return -1;
     }
     return fd;
+}
+
+bool writeExactly(int fd, const std::string& data) {
+    std::size_t total = 0;
+    while (total < data.size()) {
+        const ssize_t n = write(fd, data.data() + total, data.size() - total);
+        if (n <= 0) return false;
+        total += static_cast<std::size_t>(n);
+    }
+    return true;
+}
+
+bool readExactlyInto(int fd, std::string& out) {
+    std::size_t total = 0;
+    while (total < out.size()) {
+        const ssize_t n = read(fd, out.data() + total, out.size() - total);
+        if (n <= 0) return false;
+        total += static_cast<std::size_t>(n);
+    }
+    return true;
 }
 
 } // namespace
@@ -201,4 +223,64 @@ TEST(EchoServer, SigintTriggersGracefulShutdownEndToEnd) {
         server.runOnce();
     }
     EXPECT_TRUE(server.loop().stopRequested());
+}
+
+// Correctness under concurrency, not a performance/throughput claim (that's
+// M3's job): 100+ real loopback TCP clients hammering a single-threaded
+// EchoServer at once, each verifying its own bytes come back unmangled and
+// undivided between connections.
+TEST(EchoServer, HandlesOneHundredConcurrentClientsCorrectly) {
+    using namespace std::chrono_literals;
+    // Generous idle timeout used purely as a safety net bounding how long
+    // any single runOnce() can block -- real clients finish in well under a
+    // second, this just keeps a genuine bug from hanging the test forever.
+    asyncnet::EchoServer server(0, std::optional(5000ms));
+    const std::uint16_t port = server.boundPort();
+
+    constexpr int kNumClients = 120;
+    constexpr std::size_t kMessageSize = 256;
+
+    std::vector<std::thread> clients;
+    // Each thread writes only its own index -- no data race, and unlike
+    // vector<bool> this isn't bit-packed, so no false sharing between
+    // concurrent writes to neighboring entries.
+    std::vector<char> ok(kNumClients, 0);
+    std::atomic<int> doneCount{0};
+
+    clients.reserve(kNumClients);
+    for (int i = 0; i < kNumClients; ++i) {
+        clients.emplace_back([i, port, &ok, &doneCount]() {
+            struct DoneGuard {
+                std::atomic<int>& counter;
+                ~DoneGuard() { ++counter; }
+            } doneGuard{doneCount};
+
+            const int fd = connectLoopbackBlocking(port);
+            if (fd < 0) return;
+
+            std::string sent(kMessageSize, '\0');
+            for (std::size_t j = 0; j < kMessageSize; ++j) {
+                sent[j] = static_cast<char>((i * 31 + static_cast<int>(j)) % 256);
+            }
+
+            std::string received(kMessageSize, '\0');
+            const bool roundTripOk =
+                writeExactly(fd, sent) && readExactlyInto(fd, received) && received == sent;
+
+            close(fd);
+            ok[i] = roundTripOk ? 1 : 0;
+        });
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    while (doneCount.load() < kNumClients && std::chrono::steady_clock::now() < deadline) {
+        server.runOnce();
+    }
+
+    for (auto& t : clients) t.join();
+
+    ASSERT_EQ(doneCount.load(), kNumClients) << "test timed out before all clients finished";
+    for (int i = 0; i < kNumClients; ++i) {
+        EXPECT_EQ(ok[i], 1) << "client " << i << " did not receive a correct echo";
+    }
 }
